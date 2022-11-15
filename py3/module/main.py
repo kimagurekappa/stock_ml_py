@@ -85,7 +85,7 @@ def main():
                 df_Low = df_pre_pred.drop('index', axis=1)
 
         # result_df = pd.read_csv('pre_{0}_{1}-{2}-{3}_{4}.csv'.format(target_list[i],start_year,start_month,start_day,today))
-        result_df = pd.merge(df_High, df_Low)
+        result_df = pd.merge(df_High[['datetime','High','Low','Open','Close','Volume','Next_High', 'predicted_Next_High']], df_Low[['datetime','Next_Low', 'predicted_Next_Low']], on='datetime')
         result_df = result_df[result_df['datetime']==pd.Timestamp(today - timedelta(days=today.weekday()))]
         result_df.to_csv('pre_{0}_{1}-{2}-{3}_{4}.csv'.format(target_list[i],start_year,start_month,start_day,today))
 
