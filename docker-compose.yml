@@ -25,6 +25,18 @@ services:
         - SPY_SPREADSHEET_ID_NUM
         - QQQ_SPREADSHEET_ID
         - QQQ_SPREADSHEET_ID_NUM
+        - SPXL_TABLE
+        - SPXS_TABLE
+        - TQQQ_TABLE
+        - SQQQ_TABLE
+        - SPXL_SPREADSHEET_ID
+        - SPXL_SPREADSHEET_ID_NUM
+        - SPXS_SPREADSHEET_ID
+        - SPXS_SPREADSHEET_ID_NUM
+        - TQQQ_SPREADSHEET_ID
+        - TQQQ_SPREADSHEET_ID_NUM
+        - SQQQ_SPREADSHEET_ID
+        - SQQQ_SPREADSHEET_ID_NUM
     tty: true
     volumes:
       - ./py3/module:/app/py3/module

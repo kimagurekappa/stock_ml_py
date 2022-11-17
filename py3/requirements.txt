@@ -21,3 +21,5 @@ sqlalchemy
 pandas_datareader
 bottleneck
 sshtunnel
+fbprophet
+pytz
