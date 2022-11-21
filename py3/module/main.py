@@ -19,22 +19,19 @@ def main():
     start_4y = (pd.Period(today, 'D') - 365*4).start_time
     print('4y',start_4y)
     # 対象期間
-    start_year = 2000
-    start_month = 1
-    start_day = 1
-    start_2000 = datetime.date(start_year,start_month,start_day)
-    print('2000',start_2000)
+    start_22y = (pd.Period(today, 'D') - 365*22).start_time
+    print('22y',start_22y)
 
     # 学習用の最終日
-    end = today - timedelta(days=today.weekday()+3)
+    end = today - timedelta(days=today.weekday()+4)
     print('end',end)
     # 予測用の最終日
-    today = today - timedelta(days=today.weekday()-4)
+    today = today - timedelta(days=today.weekday()-3)
     print('today',today)
 
     # 対象銘柄
     target_list = ['DIA', 'SPY', 'QQQ']
-    # target_list = ['DIA']
+    # target_list = ['SPY']
     table_list = [os.environ['DIA_TABLE'],os.environ['SPY_TABLE'],os.environ['QQQ_TABLE']]
     spreadsheet_id_list = [os.environ['DIA_SPREADSHEET_ID'],os.environ['SPY_SPREADSHEET_ID'],os.environ['QQQ_SPREADSHEET_ID']]
     spreadsheet_id_num_list = [int(os.environ['DIA_SPREADSHEET_ID_NUM']),int(os.environ['SPY_SPREADSHEET_ID_NUM']),int(os.environ['QQQ_SPREADSHEET_ID_NUM'])]
@@ -54,24 +51,24 @@ def main():
     spreadsheet_id_list_ = [os.environ['SPXL_SPREADSHEET_ID'],os.environ['SPXS_SPREADSHEET_ID'],os.environ['TQQQ_SPREADSHEET_ID'],os.environ['SQQQ_SPREADSHEET_ID']]
     spreadsheet_id_num_list_ = [int(os.environ['SPXL_SPREADSHEET_ID_NUM']),int(os.environ['SPXS_SPREADSHEET_ID_NUM']),int(os.environ['TQQQ_SPREADSHEET_ID_NUM']),int(os.environ['SQQQ_SPREADSHEET_ID_NUM'])]
 
-    # レバレッジETFの週足
-    for j in range(len(target_list_)):
-        # 2000年 ~ 今日までの週足を取得
-        df_stock_wk = data.get_data_yahoo(target_list_[j], end=today, start= today - timedelta(days=today.weekday()), interval='w').drop('Adj Close', axis=1).reset_index()
-        
-        # 結果を SQLに格納
-        db.to_sql(df_stock_wk, table_list_[j])
-        # SQL から CSV を作成
-        csv_body = db.sql_to_csv(table_list_[j])
-        # CSV をスプレッドシートに書き出す
-        db.upload_csv_to_spreadsheet(spreadsheet_id_list_[j], spreadsheet_id_num_list_[j], csv_body)
+    # # レバレッジETFの週足
+    # for j in range(len(target_list_)):
+    #     # 22年前 ~ 今日までの週足を取得
+    #     df_stock_wk = data.get_data_yahoo(target_list_[j], end=today, start= today - timedelta(days=today.weekday()), interval='w').drop('Adj Close', axis=1).reset_index()
+
+    #     # 結果を SQLに格納
+    #     db.to_sql(df_stock_wk, table_list_[j])
+    #     # SQL から CSV を作成
+    #     csv_body = db.sql_to_csv(table_list_[j])
+    #     # CSV をスプレッドシートに書き出す
+    #     db.upload_csv_to_spreadsheet(spreadsheet_id_list_[j], spreadsheet_id_num_list_[j], csv_body)
 
     # 三大指数ETFの週足予測
     for i in range(len(target_list)):
-        # 2000年 ~ 今日までの週足を取得
-        df_stock_wk = data.get_data_yahoo(target_list[i], end=today, start=start_2000, interval='w').drop('Adj Close', axis=1).reset_index()
-        df_dgs_wk = pycaret_weekly.dgs(start_2000,today).reset_index()
-        
+        # 22年前 ~ 今日までの週足を取得
+        df_stock_wk = data.get_data_yahoo(target_list[i], end=today, start=start_22y, interval='w').drop('Adj Close', axis=1).reset_index()
+        df_dgs_wk = pycaret_weekly.dgs(start_22y,today).reset_index()
+
         # Prophetモデル作成
         # データを直近4年間にする
         df_prophet = df_stock_wk[df_stock_wk['Date']>=np.datetime64(start_4y)]
@@ -120,9 +117,15 @@ def main():
             # 拡張
             df_pycaret_pre = pycaret_weekly.feature(df_stock_wk, df_dgs_wk, index)
             df_pycaret = pycaret_weekly.feature(df_stock_wk[df_stock_wk['Date']<=np.datetime64(end)], df_dgs_wk[df_dgs_wk['DATE']<=np.datetime64(end)], index)
+            # df_pycaret = df_pycaret_pre[df_pycaret_pre['datetime']<=np.datetime64(end)]
 
             # 環境セットアップ
-            regression = pycaret_weekly.regression(df_pycaret, index)
+            if target_list[i] == 'SPY':
+                regression = pycaret_weekly.regression_spy(df_pycaret, index)
+            elif target_list[i] == 'QQQ':
+                regression = pycaret_weekly.regression_qqq(df_pycaret, index)
+            else:
+                regression = pycaret_weekly.regression_dia(df_pycaret, index)
 
             # モデル作成
             df_pred, voting_regressor, df_fi = pycaret_weekly.train(df_pycaret, index)
@@ -145,15 +148,14 @@ def main():
         result_df = pd.merge(df_High[['datetime','High','Low','Open','Close','Volume','Next_High', 'predicted_Next_High']], df_Low[['datetime','Next_Low', 'predicted_Next_Low']], on='datetime')
         result_df = result_df[result_df['datetime']==pd.Timestamp(today - timedelta(days=today.weekday()))]
         result_df = pd.merge(result_df, predict_df_prophet[['ds','predicted_Next_Close_Lower','predicted_Next_Close_Upper','predicted_Next_Close']], left_on = 'datetime', right_on = 'ds').drop('ds', axis=1)
-        # result_df.to_csv('pre_{0}_{1}_{2}.csv'.format(target_list[i],start_2000,today))
+        result_df.to_csv('result_{}_{}.csv'.format(target_list[i],today))
 
-
-        # 結果を SQLに格納
-        db.to_sql(result_df, table_list[i])
-        # SQL から CSV を作成
-        csv_body = db.sql_to_csv(table_list[i])
-        # CSV をスプレッドシートに書き出す
-        db.upload_csv_to_spreadsheet(spreadsheet_id_list[i], spreadsheet_id_num_list[i], csv_body)
+        # # 結果を SQLに格納
+        # db.to_sql(result_df, table_list[i])
+        # # SQL から CSV を作成
+        # csv_body = db.sql_to_csv(table_list[i])
+        # # CSV をスプレッドシートに書き出す
+        # db.upload_csv_to_spreadsheet(spreadsheet_id_list[i], spreadsheet_id_num_list[i], csv_body)
 
 if __name__ == "__main__":
     main()

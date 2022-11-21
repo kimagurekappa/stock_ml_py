@@ -45,7 +45,7 @@ class pycaretWeekly:
         return df_DGS.resample('W-MON').mean()
     
     #環境セットアップ
-    def regression(self, df_train, index):
+    def regression_spy(self, df_train, index):
         regression = setup(
             data=df_train,
             target=index,
@@ -53,8 +53,42 @@ class pycaretWeekly:
             normalize=True,
             normalize_method='zscore',
             feature_selection=True,
-            transformation=True,
-            transformation_method='yeo-johnson',
+            # transformation=True,
+            # transformation_method='yeo-johnson',
+            # pca=True,
+            # pca_method='kernel',
+            create_clusters=True,
+            # profile=True,
+            silent=True
+        )
+        return regression
+    
+    #環境セットアップ
+    def regression_dia(self, df_train, index):
+        regression = setup(
+            data=df_train,
+            target=index,
+            session_id=0,
+            # normalize=True,
+            # normalize_method='zscore',
+            # feature_selection=True,
+            # pca=True,
+            # pca_method='kernel',
+            create_clusters=True,
+            # profile=True,
+            silent=True
+        )
+        return regression
+    
+    #環境セットアップ
+    def regression_qqq(self, df_train, index):
+        regression = setup(
+            data=df_train,
+            target=index,
+            session_id=0,
+            # normalize=True,
+            # normalize_method='zscore',
+            # feature_selection=True,
             # pca=True,
             # pca_method='kernel',
             create_clusters=True,
