@@ -13,8 +13,8 @@ from pycaret.regression import *
 def main():
     # データ 取得期間の設定
     # 今日の日付
-    # today = datetime.date.today() - timedelta(days=datetime.date.today().weekday()-4)
-    today = datetime.date.today() - timedelta(days=datetime.date.today().weekday()+3)
+    today = datetime.date.today() - timedelta(days=datetime.date.today().weekday()-4)
+    # today = datetime.date.today() - timedelta(days=datetime.date.today().weekday()+3)
     # 開始日 (365日前とする)
     start_4y = (pd.Period(today, 'D') - 365*4).start_time
     print('4y',start_4y)
