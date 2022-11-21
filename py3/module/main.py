@@ -147,7 +147,7 @@ def main():
         result_df = pd.merge(df_High[['datetime','High','Low','Open','Close','Volume','Next_High', 'predicted_Next_High']], df_Low[['datetime','Next_Low', 'predicted_Next_Low']], on='datetime')
         result_df = result_df[result_df['datetime']==pd.Timestamp(today - timedelta(days=today.weekday()))]
         result_df = pd.merge(result_df, predict_df_prophet[['ds','predicted_Next_Close_Lower','predicted_Next_Close_Upper','predicted_Next_Close']], left_on = 'datetime', right_on = 'ds').drop('ds', axis=1)
-        result_df.to_csv('result_{}_{}.csv'.format(target_list[i],today))
+        # result_df.to_csv('result_{}_{}.csv'.format(target_list[i],today))
 
         # 結果を SQLに格納
         db.to_sql(result_df, table_list[i])
