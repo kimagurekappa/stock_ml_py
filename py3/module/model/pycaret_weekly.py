@@ -41,14 +41,18 @@ class pycaretWeekly:
                 yield_curves.append(np.polyfit(x, y, 1)[0])
 
         df_DGS["YC"] = yield_curves
-
+        
+        #VIXのデータを取得
+        vix = web.DataReader('VIXCLS','fred', start, end)
+        df_DGS = pd.concat([df_DGS, vix], axis=1)
+        
         return df_DGS.resample('W-MON').mean()
     
     #環境セットアップ
-    def regression_spy(self, df_train, index):
+    def regression(self, df_train, index):
         regression = setup(
             data=df_train,
-            target=index,
+            target='Next_{}'.format(index),
             session_id=0,
             normalize=True,
             normalize_method='zscore',
@@ -57,40 +61,7 @@ class pycaretWeekly:
             # transformation_method='yeo-johnson',
             # pca=True,
             # pca_method='kernel',
-            create_clusters=True,
-            # profile=True,
-            silent=True
-        )
-        return regression
-    
-    #環境セットアップ
-    def regression_dia(self, df_train, index):
-        regression = setup(
-            data=df_train,
-            target=index,
-            session_id=0,
-            # normalize=True,
-            # normalize_method='zscore',
-            # feature_selection=True,
-            # pca=True,
-            # pca_method='kernel',
-            create_clusters=True,
-            # profile=True,
-            silent=True
-        )
-        return regression
-    
-    #環境セットアップ
-    def regression_qqq(self, df_train, index):
-        regression = setup(
-            data=df_train,
-            target=index,
-            session_id=0,
-            # normalize=True,
-            # normalize_method='zscore',
-            # feature_selection=True,
-            # pca=True,
-            # pca_method='kernel',
+            remove_multicollinearity=True,
             create_clusters=True,
             # profile=True,
             silent=True
@@ -157,22 +128,24 @@ class pycaretWeekly:
         df = df.merge(df_dgs)
         
         # ローソク足を指標化
-        df = df.assign(Open_Close = df['Open'] - df['Close'])
-        df = df.assign(High_Low = df['High'] - df['Open'])
-        df = df.assign(Open_Low = df['High'] - df['Close'])
-        df = df.assign(Close_High = df['Open'] - df['Low'])
-        df = df.assign(Close_Low = df['Close'] - df['Low'])
-        # df
+        if index == 'High':
+            df = df.assign(Open_Close = df['Open'] - df['Close'])
+            df = df.assign(High_Open = df['High'] - df['Open'])
+            df = df.assign(High_Close = df['High'] - df['Close'])
+        elif index == 'Low':
+            df = df.assign(Open_Close = df['Open'] - df['Close'])
+            df = df.assign(Open_Low = df['Open'] - df['Low'])
+            df = df.assign(Close_Low = df['Close'] - df['Low'])
 
         # 移動平均
         move_mean_w13 = bn.move_mean(df[index], window=13)
         df['move_mean_{}_w13'.format(index)] = move_mean_w13
-        move_mean_w26 = bn.move_mean(df[index], window=26)
-        df['move_mean_{}_w26'.format(index)] = move_mean_w26
+        # move_mean_w26 = bn.move_mean(df[index], window=26)
+        # df['move_mean_{}_w26'.format(index)] = move_mean_w26
         move_mean_w52 = bn.move_mean(df[index], window=52)
         df['move_mean_{}_w52'.format(index)] = move_mean_w52
         # 差の特徴量
-        df = df.assign(w52_w26 = df['move_mean_{}_w52'.format(index)] - df['move_mean_{}_w26'.format(index)])
+        df = df.assign(w52_w13 = df['move_mean_{}_w52'.format(index)] - df['move_mean_{}_w13'.format(index)])
 
         # 時系列成分
         res = sm.tsa.seasonal_decompose(df[index],period=52)
@@ -189,17 +162,18 @@ class pycaretWeekly:
         lower_num = 0.001
         upper_num = 1 - lower_num
 
-        for line_turm in line_turms:
-            # Resistance lines
-            df['r' + str(line_turm)] = df['Close'].rolling(line_turm).quantile(upper_num)    
-            df['r' + str(line_turm)] = df['r' + str(line_turm)].shift(1)
-
-            # Support lines
-            df['s' + str(line_turm)] = df['Close'].rolling(line_turm).quantile(lower_num)
-            df['s' + str(line_turm)] = df['s' + str(line_turm)].shift(1)
-        # 差の特徴量
-        df = df.assign(r60_High = df['r60'] - df['High'])
-        df = df.assign(Low_s60 = df['Low'] - df['s60'])
+        if index == 'High':
+            for line_turm in line_turms:
+                # Resistance lines
+                df['r' + str(line_turm)] = df['High'].rolling(line_turm).quantile(upper_num)    
+                df['r' + str(line_turm)] = df['r' + str(line_turm)].shift(1)
+                df = df.assign(r60_High = df['r60'] - df['High'])
+        elif index == 'Low':
+            for line_turm in line_turms:
+                # Support lines
+                df['s' + str(line_turm)] = df['Low'].rolling(line_turm).quantile(lower_num)
+                df['s' + str(line_turm)] = df['s' + str(line_turm)].shift(1)
+                df = df.assign(Low_s60 = df['Low'] - df['s60'])
 
         df = df.merge(df_sm)
         df = df[120:]

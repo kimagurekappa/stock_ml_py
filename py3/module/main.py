@@ -16,22 +16,24 @@ def main():
     today = datetime.date.today() - timedelta(days=datetime.date.today().weekday()-4)
     # today = datetime.date.today() - timedelta(days=datetime.date.today().weekday()+3)
     # 開始日 (365日前とする)
-    start_4y = (pd.Period(today, 'D') - 365*4).start_time
-    print('4y',start_4y)
+    start_8y = (pd.Period(today, 'D') - 365*8).start_time
+    print('8y',start_8y)
+    start_6y = (pd.Period(today, 'D') - 365*6).start_time
+    print('6y',start_6y)
     # 対象期間
     start_22y = (pd.Period(today, 'D') - 365*22).start_time
     print('22y',start_22y)
 
     # 学習用の最終日
-    end = today - timedelta(days=today.weekday()+4)
+    end = today - timedelta(days=today.weekday()+3)
     print('end',end)
     # 予測用の最終日
-    today = today - timedelta(days=today.weekday()-3)
+    today = today - timedelta(days=today.weekday()-4)
     print('today',today)
 
     # 対象銘柄
     target_list = ['DIA', 'SPY', 'QQQ']
-    # target_list = ['SPY']
+    # target_list = ['QQQ']
     table_list = [os.environ['DIA_TABLE'],os.environ['SPY_TABLE'],os.environ['QQQ_TABLE']]
     spreadsheet_id_list = [os.environ['DIA_SPREADSHEET_ID'],os.environ['SPY_SPREADSHEET_ID'],os.environ['QQQ_SPREADSHEET_ID']]
     spreadsheet_id_num_list = [int(os.environ['DIA_SPREADSHEET_ID_NUM']),int(os.environ['SPY_SPREADSHEET_ID_NUM']),int(os.environ['QQQ_SPREADSHEET_ID_NUM'])]
@@ -55,6 +57,7 @@ def main():
     for j in range(len(target_list_)):
         # 22年前 ~ 今日までの週足を取得
         df_stock_wk = data.get_data_yahoo(target_list_[j], end=today, start= today - timedelta(days=today.weekday()), interval='w').drop('Adj Close', axis=1).reset_index()
+        df_stock_wk = df_stock_wk[df_stock_wk['Date']<=np.datetime64(today - timedelta(days=today.weekday()))]
 
         # 結果を SQLに格納
         db.to_sql(df_stock_wk, table_list_[j])
@@ -71,7 +74,10 @@ def main():
 
         # Prophetモデル作成
         # データを直近4年間にする
-        df_prophet = df_stock_wk[df_stock_wk['Date']>=np.datetime64(start_4y)]
+        if target_list[i] == 'QQQ':
+            df_prophet = df_stock_wk[df_stock_wk['Date']>=np.datetime64(start_6y)]
+        else:
+            df_prophet = df_stock_wk[df_stock_wk['Date']>=np.datetime64(start_8y)]
         df_prophet['ds'] = df_prophet['Date']
         df_prophet = df_prophet.rename({'Close':'y'}, axis=1)
         # 不要カラムの削除と並べ替え
@@ -116,15 +122,18 @@ def main():
         for index in index_list:
             # 拡張
             df_pycaret_pre = pycaret_weekly.feature(df_stock_wk, df_dgs_wk, index)
-            df_pycaret = pycaret_weekly.feature(df_stock_wk[df_stock_wk['Date']<=np.datetime64(end)], df_dgs_wk[df_dgs_wk['DATE']<=np.datetime64(end)], index)
+            df_pycaret = df_pycaret_pre[df_pycaret_pre['datetime']<=np.datetime64(end)]
+            
+            if index == 'High':
+                drop_list = ['Open', 'Close', 'DGS2', 'DGS5', 'Low','move_mean_{}_w52'.format(index)]
+            elif index == 'Low':
+                drop_list = ['Open', 'Close', 'DGS2', 'DGS5', 'High','move_mean_{}_w52'.format(index)]
+            df_pycaret_pre = df_pycaret_pre.drop(drop_list,axis=1)
+            df_pycaret = df_pycaret.drop(drop_list,axis=1)
+            
 
             # 環境セットアップ
-            if target_list[i] == 'SPY':
-                regression = pycaret_weekly.regression_spy(df_pycaret, index)
-            elif target_list[i] == 'QQQ':
-                regression = pycaret_weekly.regression_qqq(df_pycaret, index)
-            else:
-                regression = pycaret_weekly.regression_dia(df_pycaret, index)
+            regression = pycaret_weekly.regression(df_pycaret, index)
 
             # モデル作成
             df_pred, voting_regressor, df_fi = pycaret_weekly.train(df_pycaret, index)
@@ -144,7 +153,7 @@ def main():
             elif index == 'Low':
                 df_Low = predict_df_pycaret.drop('index', axis=1)
 
-        result_df = pd.merge(df_High[['datetime','High','Low','Open','Close','Volume','Next_High', 'predicted_Next_High']], df_Low[['datetime','Next_Low', 'predicted_Next_Low']], on='datetime')
+        result_df = pd.merge(df_High[['datetime','High','Next_High', 'predicted_Next_High']], df_Low[['datetime','Low','Next_Low', 'predicted_Next_Low']], on='datetime')
         result_df = result_df[result_df['datetime']==pd.Timestamp(today - timedelta(days=today.weekday()))]
         result_df = pd.merge(result_df, predict_df_prophet[['ds','predicted_Next_Close_Lower','predicted_Next_Close_Upper','predicted_Next_Close']], left_on = 'datetime', right_on = 'ds').drop('ds', axis=1)
         # result_df.to_csv('result_{}_{}.csv'.format(target_list[i],today))
