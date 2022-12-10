@@ -18,6 +18,8 @@ def main():
     # 開始日 (365日前とする)
     start_8y = (pd.Period(today, 'D') - 365*8).start_time
     print('8y',start_8y)
+    start_7y = (pd.Period(today, 'D') - 365*7).start_time
+    print('7y',start_7y)
     start_6y = (pd.Period(today, 'D') - 365*6).start_time
     print('6y',start_6y)
     # 対象期間
@@ -33,7 +35,7 @@ def main():
 
     # 対象銘柄
     target_list = ['DIA', 'SPY', 'QQQ']
-    # target_list = ['QQQ']
+    # target_list = ['DIA']
     table_list = [os.environ['DIA_TABLE'],os.environ['SPY_TABLE'],os.environ['QQQ_TABLE']]
     spreadsheet_id_list = [os.environ['DIA_SPREADSHEET_ID'],os.environ['SPY_SPREADSHEET_ID'],os.environ['QQQ_SPREADSHEET_ID']]
     spreadsheet_id_num_list = [int(os.environ['DIA_SPREADSHEET_ID_NUM']),int(os.environ['SPY_SPREADSHEET_ID_NUM']),int(os.environ['QQQ_SPREADSHEET_ID_NUM'])]
@@ -68,6 +70,8 @@ def main():
 
     # 三大指数ETFの週足予測
     for i in range(len(target_list)):
+        # checkpoint
+        print('checkpoint:',i,':',target_list[i])
         # 22年前 ~ 今日までの週足を取得
         df_stock_wk = data.get_data_yahoo(target_list[i], end=today, start=start_22y, interval='w').drop('Adj Close', axis=1).reset_index()
         df_dgs_wk = pycaret_weekly.dgs(start_22y,today).reset_index()
@@ -76,6 +80,8 @@ def main():
         # データを直近4年間にする
         if target_list[i] == 'QQQ':
             df_prophet = df_stock_wk[df_stock_wk['Date']>=np.datetime64(start_6y)]
+        elif target_list[i] == 'SPY':
+            df_prophet = df_stock_wk[df_stock_wk['Date']>=np.datetime64(start_7y)]
         else:
             df_prophet = df_stock_wk[df_stock_wk['Date']>=np.datetime64(start_8y)]
         df_prophet['ds'] = df_prophet['Date']
@@ -114,12 +120,15 @@ def main():
         model.predict(periods=predict_period_weeks)
         # 予測結果
         predict_df_prophet = model.get_predict_df()
-        predict_df_prophet = predict_df_prophet[predict_df_prophet['ds']>np.datetime64(today)][['ds','yhat_lower','yhat_upper','yhat']].reset_index()
-        predict_df_prophet = predict_df_prophet.rename({'yhat_lower':'predicted_Next_Close_Lower','yhat_upper':'predicted_Next_Close_Upper','yhat':'predicted_Next_Close'}, axis=1)
+        predict_df_prophet['last_y'] = model.get_predict_df()['y'].shift(1)
+        predict_df_prophet = predict_df_prophet[predict_df_prophet['ds']>np.datetime64(today)][['ds','yhat_lower','yhat_upper','yhat','last_y']].reset_index()
+        predict_df_prophet = predict_df_prophet.rename({'yhat_lower':'predicted_Next_Close_Lower','yhat_upper':'predicted_Next_Close_Upper','yhat':'predicted_Next_Close','last_y':'Close'}, axis=1)
         predict_df_prophet['ds'][0] = predict_df_prophet['ds'][0] - timedelta(days=predict_df_prophet['ds'][0].weekday())
 
         # Pycaretモデル作成    
         for index in index_list:
+            # checkpoint
+            print('checkpoint:',index)
             # 拡張
             df_pycaret_pre = pycaret_weekly.feature(df_stock_wk, df_dgs_wk, index)
             df_pycaret = df_pycaret_pre[df_pycaret_pre['datetime']<=np.datetime64(end)]
@@ -155,9 +164,11 @@ def main():
 
         result_df = pd.merge(df_High[['datetime','High','Next_High', 'predicted_Next_High']], df_Low[['datetime','Low','Next_Low', 'predicted_Next_Low']], on='datetime')
         result_df = result_df[result_df['datetime']==pd.Timestamp(today - timedelta(days=today.weekday()))]
-        result_df = pd.merge(result_df, predict_df_prophet[['ds','predicted_Next_Close_Lower','predicted_Next_Close_Upper','predicted_Next_Close']], left_on = 'datetime', right_on = 'ds').drop('ds', axis=1)
+        result_df = pd.merge(result_df, predict_df_prophet[['ds','predicted_Next_Close_Lower','predicted_Next_Close_Upper','predicted_Next_Close','Close']], left_on = 'datetime', right_on = 'ds').drop('ds', axis=1)
         # result_df.to_csv('result_{}_{}.csv'.format(target_list[i],today))
 
+        # checkpoint
+        print('checkpoint:',i,':',table_list[i])
         # 結果を SQLに格納
         db.to_sql(result_df, table_list[i])
         # SQL から CSV を作成
