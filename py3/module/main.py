@@ -63,23 +63,23 @@ def main():
     spreadsheet_id_list_ = [os.environ['SPXL_SPREADSHEET_ID'],os.environ['SPXS_SPREADSHEET_ID'],os.environ['TQQQ_SPREADSHEET_ID'],os.environ['SQQQ_SPREADSHEET_ID']]
     spreadsheet_id_num_list_ = [int(os.environ['SPXL_SPREADSHEET_ID_NUM']),int(os.environ['SPXS_SPREADSHEET_ID_NUM']),int(os.environ['TQQQ_SPREADSHEET_ID_NUM']),int(os.environ['SQQQ_SPREADSHEET_ID_NUM'])]
 
-    # # レバレッジETFの週足
-    # for j in range(len(target_list_)):
-    #     # 22年前 ~ 今日までの週足を取得
-    #     # df_stock_wk = data.get_data_yahoo(target_list_[j], end=today, start= today - timedelta(days=today.weekday()), interval='w').drop('Adj Close', axis=1).reset_index()
-    #     df_stock_wk = yf.download(target_list_[j], end=today, start= today - timedelta(days=today.weekday()), interval = "1wk").drop('Adj Close', axis=1).reset_index()
-    #     df_stock_wk = df_stock_wk[df_stock_wk['Date']<=np.datetime64(today - timedelta(days=today.weekday()))]
+    # レバレッジETFの週足
+    for j in range(len(target_list_)):
+        # 22年前 ~ 今日までの週足を取得
+        # df_stock_wk = data.get_data_yahoo(target_list_[j], end=today, start= today - timedelta(days=today.weekday()), interval='w').drop('Adj Close', axis=1).reset_index()
+        df_stock_wk = yf.download(target_list_[j], end=today, start= today - timedelta(days=today.weekday()), interval = "1wk").drop('Adj Close', axis=1).reset_index()
+        df_stock_wk = df_stock_wk[df_stock_wk['Date']<=np.datetime64(today - timedelta(days=today.weekday()))]
 
-    #     # 結果を SQLに格納
-    #     db.to_sql(df_stock_wk, table_list_[j])
-    #     # SQL から CSV を作成
-    #     csv_body = db.sql_to_csv(table_list_[j])
-    #     # CSV をスプレッドシートに書き出す
-    #     db.upload_csv_to_spreadsheet(spreadsheet_id_list_[j], spreadsheet_id_num_list_[j], csv_body)
+        # 結果を SQLに格納
+        db.to_sql(df_stock_wk, table_list_[j])
+        # SQL から CSV を作成
+        csv_body = db.sql_to_csv(table_list_[j])
+        # CSV をスプレッドシートに書き出す
+        db.upload_csv_to_spreadsheet(spreadsheet_id_list_[j], spreadsheet_id_num_list_[j], csv_body)
 
     # 三大指数ETFの週足予測
-    # for i in range(len(target_list)):
-    for i in [1]:
+    for i in range(len(target_list)):
+    # for i in [1]:
         # checkpoint
         print('checkpoint:',i,':',target_list[i])
         # 22年前 ~ 今日までの週足を取得
