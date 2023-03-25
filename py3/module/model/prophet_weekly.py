@@ -4,7 +4,7 @@
 import pandas as pd
 import numpy as np
 from pandas_datareader import data
-import matplotlib.pyplot as plt
+# import matplotlib.pyplot as plt
 
 # warningを消す
 import warnings

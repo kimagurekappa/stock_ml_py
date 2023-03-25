@@ -7,6 +7,8 @@ import pandas as pd
 from datetime import timedelta
 import datetime
 from pandas_datareader import data
+import yfinance as yf
+
 # https://pycaret.org/regression/
 from pycaret.regression import *
 
@@ -39,6 +41,12 @@ def main():
     table_list = [os.environ['DIA_TABLE'],os.environ['SPY_TABLE'],os.environ['QQQ_TABLE']]
     spreadsheet_id_list = [os.environ['DIA_SPREADSHEET_ID'],os.environ['SPY_SPREADSHEET_ID'],os.environ['QQQ_SPREADSHEET_ID']]
     spreadsheet_id_num_list = [int(os.environ['DIA_SPREADSHEET_ID_NUM']),int(os.environ['SPY_SPREADSHEET_ID_NUM']),int(os.environ['QQQ_SPREADSHEET_ID_NUM'])]
+    
+    # 対象銘柄
+    target_list_pro = ['DIA_PRO', 'SPY_PRO', 'QQQ_PRO']
+    table_list_pro = [os.environ['DIA_PRO_TABLE'],os.environ['SPY_PRO_TABLE'],os.environ['QQQ_PRO_TABLE']]
+    spreadsheet_id_list_pro = [os.environ['DIA_PRO_SPREADSHEET_ID'],os.environ['SPY_PRO_SPREADSHEET_ID'],os.environ['QQQ_PRO_SPREADSHEET_ID']]
+    spreadsheet_id_num_list_pro = [int(os.environ['DIA_PRO_SPREADSHEET_ID_NUM']),int(os.environ['SPY_PRO_SPREADSHEET_ID_NUM']),int(os.environ['QQQ_PRO_SPREADSHEET_ID_NUM'])]
 
     # 予測する指標
     index_list = ['High', 'Low']
@@ -58,7 +66,8 @@ def main():
     # レバレッジETFの週足
     for j in range(len(target_list_)):
         # 22年前 ~ 今日までの週足を取得
-        df_stock_wk = data.get_data_yahoo(target_list_[j], end=today, start= today - timedelta(days=today.weekday()), interval='w').drop('Adj Close', axis=1).reset_index()
+        # df_stock_wk = data.get_data_yahoo(target_list_[j], end=today, start= today - timedelta(days=today.weekday()), interval='w').drop('Adj Close', axis=1).reset_index()
+        df_stock_wk = yf.download(target_list_[j], end=today, start= today - timedelta(days=today.weekday()), interval = "1wk").drop('Adj Close', axis=1).reset_index()
         df_stock_wk = df_stock_wk[df_stock_wk['Date']<=np.datetime64(today - timedelta(days=today.weekday()))]
 
         # 結果を SQLに格納
@@ -73,7 +82,8 @@ def main():
         # checkpoint
         print('checkpoint:',i,':',target_list[i])
         # 22年前 ~ 今日までの週足を取得
-        df_stock_wk = data.get_data_yahoo(target_list[i], end=today, start=start_22y, interval='w').drop('Adj Close', axis=1).reset_index()
+        # df_stock_wk = data.get_data_yahoo(target_list[i], end=today, start=start_22y, interval='w').drop('Adj Close', axis=1).reset_index()
+        df_stock_wk = yf.download(target_list[i], end=today, start=start_22y, interval = "1wk").drop('Adj Close', axis=1).reset_index()
         df_dgs_wk = pycaret_weekly.dgs(start_22y,today).reset_index()
 
         # Prophetモデル作成
@@ -89,8 +99,9 @@ def main():
         # 不要カラムの削除と並べ替え
         df_prophet = df_prophet[['ds', 'y']]
         df_prophet['ds'] = pd.to_datetime(df_prophet['ds'])
+        df_prophet = df_prophet[df_prophet['ds']<=np.datetime64(today - timedelta(+4))]
         # パラメータ
-        predict_period_weeks = 1
+        predict_period_weeks = 4
         model_datas = {}
         model_datas['price'] = {}
         model_datas['price']['model_type'] = 'price'
@@ -119,11 +130,26 @@ def main():
         model.modeling()
         model.predict(periods=predict_period_weeks)
         # 予測結果
+        predict_df_prophet_4w = model.get_predict_df()
+        predict_df_prophet_4w['last_y'] = model.get_predict_df()['y'].shift(1)
+        predict_df_prophet_4w = predict_df_prophet_4w[predict_df_prophet_4w['ds']>np.datetime64(today - timedelta(+55))][['ds','yhat_lower','yhat_upper','yhat','y','base_date']].reset_index().drop('index',axis=1)
+        predict_df_prophet_4w = predict_df_prophet_4w.rename({'yhat_lower':'predicted_Close_Lower','yhat_upper':'predicted_Close_Upper','yhat':'predicted_Close','y':'Close'}, axis=1)
+        for t in range(4):
+            predict_df_prophet_4w['ds'][(8+t)] = predict_df_prophet_4w['ds'][(8+t)] + timedelta(1)
+
+        # 結果を SQLに格納
+        db.to_sql(predict_df_prophet_4w, table_list_pro[i])
+        # SQL から CSV を作成
+        csv_body = db.sql_to_csv(table_list_pro[i])
+        # CSV をスプレッドシートに書き出す
+        db.upload_csv_to_spreadsheet(spreadsheet_id_list_pro[i], spreadsheet_id_num_list_pro[i], csv_body)
+        
         predict_df_prophet = model.get_predict_df()
         predict_df_prophet['last_y'] = model.get_predict_df()['y'].shift(1)
         predict_df_prophet = predict_df_prophet[predict_df_prophet['ds']>np.datetime64(today)][['ds','yhat_lower','yhat_upper','yhat','last_y']].reset_index()
         predict_df_prophet = predict_df_prophet.rename({'yhat_lower':'predicted_Next_Close_Lower','yhat_upper':'predicted_Next_Close_Upper','yhat':'predicted_Next_Close','last_y':'Close'}, axis=1)
         predict_df_prophet['ds'][0] = predict_df_prophet['ds'][0] - timedelta(days=predict_df_prophet['ds'][0].weekday())
+        predict_df_prophet = predict_df_prophet[predict_df_prophet['ds']==np.datetime64(today - timedelta(+4))][['ds','predicted_Next_Close_Lower','predicted_Next_Close_Upper','predicted_Next_Close','Close']]
 
         # Pycaretモデル作成    
         for index in index_list:

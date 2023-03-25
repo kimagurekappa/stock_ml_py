@@ -5,8 +5,8 @@ from pandas_datareader import data
 from datetime import timedelta
 import pandas_datareader.data as web
 
-import matplotlib.pyplot as plt
-import seaborn as sns
+# import matplotlib.pyplot as plt
+# import seaborn as sns
 # 移動平均
 import bottleneck as bn
 # 時系列解析

@@ -37,6 +37,15 @@ services:
         - TQQQ_SPREADSHEET_ID_NUM
         - SQQQ_SPREADSHEET_ID
         - SQQQ_SPREADSHEET_ID_NUM
+        - DIA_PRO_TABLE
+        - SPY_PRO_TABLE
+        - QQQ_PRO_TABLE
+        - DIA_PRO_SPREADSHEET_ID
+        - DIA_PRO_SPREADSHEET_ID_NUM
+        - SPY_PRO_SPREADSHEET_ID
+        - SPY_PRO_SPREADSHEET_ID_NUM
+        - QQQ_PRO_SPREADSHEET_ID
+        - QQQ_PRO_SPREADSHEET_ID_NUM
     tty: true
     volumes:
       - ./py3/module:/app/py3/module
