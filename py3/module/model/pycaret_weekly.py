@@ -138,14 +138,14 @@ class pycaretWeekly:
             df = df.assign(Close_Low = df['Close'] - df['Low'])
 
         # 移動平均
-        move_mean_w13 = bn.move_mean(df[index], window=13)
-        df['move_mean_{}_w13'.format(index)] = move_mean_w13
-        # move_mean_w26 = bn.move_mean(df[index], window=26)
-        # df['move_mean_{}_w26'.format(index)] = move_mean_w26
-        move_mean_w52 = bn.move_mean(df[index], window=52)
-        df['move_mean_{}_w52'.format(index)] = move_mean_w52
+        move_mean_w5 = bn.move_mean(df[index], window=5)
+        df['move_mean_{}_w5'.format(index)] = move_mean_w5
+        move_mean_w25 = bn.move_mean(df[index], window=25)
+        df['move_mean_{}_w25'.format(index)] = move_mean_w25
+        # move_mean_w50 = bn.move_mean(df[index], window=50)
+        # df['move_mean_{}_w50'.format(index)] = move_mean_w50
         # 差の特徴量
-        df = df.assign(w52_w13 = df['move_mean_{}_w52'.format(index)] - df['move_mean_{}_w13'.format(index)])
+        df = df.assign(w25_w5 = df['move_mean_{}_w25'.format(index)] - df['move_mean_{}_w5'.format(index)])
 
         # 時系列成分
         res = sm.tsa.seasonal_decompose(df[index],period=52)
@@ -158,7 +158,7 @@ class pycaretWeekly:
         df_sm = df_sm.rename(columns={0: 'datetime'})
         
         # 支持線・抵抗線
-        line_turms = [60]
+        line_turms = [50]
         lower_num = 0.001
         upper_num = 1 - lower_num
 
@@ -167,13 +167,13 @@ class pycaretWeekly:
                 # Resistance lines
                 df['r' + str(line_turm)] = df['High'].rolling(line_turm).quantile(upper_num)    
                 df['r' + str(line_turm)] = df['r' + str(line_turm)].shift(1)
-                df = df.assign(r60_High = df['r60'] - df['High'])
+                df = df.assign(r50_High = df['r50'] - df['High'])
         elif index == 'Low':
             for line_turm in line_turms:
                 # Support lines
                 df['s' + str(line_turm)] = df['Low'].rolling(line_turm).quantile(lower_num)
                 df['s' + str(line_turm)] = df['s' + str(line_turm)].shift(1)
-                df = df.assign(Low_s60 = df['Low'] - df['s60'])
+                df = df.assign(Low_s50 = df['Low'] - df['s50'])
 
         df = df.merge(df_sm)
         df = df[120:]

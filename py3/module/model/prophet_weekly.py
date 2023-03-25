@@ -123,7 +123,7 @@ class prophetWeekly:
                     }
                 })
 
-    def predict(self, periods=53):
+    def predict(self, periods=52):
         for model, value in self.model_datas.items():
             m = value["model"]
             future = m.make_future_dataframe(periods=periods, freq='w')
