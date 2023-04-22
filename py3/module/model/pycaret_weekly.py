@@ -51,47 +51,66 @@ class pycaretWeekly:
     #環境セットアップ
     def regression(self, df_train, index):
         regression = setup(
-            data=df_train,
-            target='Next_{}'.format(index),
-            session_id=0,
-            normalize=True,
-            normalize_method='zscore',
-            feature_selection=True,
+            data = df_train, 
+            target = 'Next_{}'.format(index), 
+            session_id = 0,
+            # normalize=True,
+            # normalize_method='zscore',
+            # feature_selection=True,
             # transformation=True,
             # transformation_method='yeo-johnson',
             # pca=True,
             # pca_method='kernel',
             remove_multicollinearity=True,
-            create_clusters=True,
             # profile=True,
-            silent=True
+        )
+
+        # import RegressionExperiment and init the class
+        exp = RegressionExperiment()
+
+        # init setup on exp
+        exp.setup(
+            data = df_train, 
+            target = 'Next_{}'.format(index), 
+            session_id = 0,
+            # normalize=True,
+            # normalize_method='zscore',
+            # feature_selection=True,
+            # transformation=True,
+            # transformation_method='yeo-johnson',
+            # pca=True,
+            # pca_method='kernel',
+            remove_multicollinearity=True,
+            # profile=True,
         )
         return regression
 
     # 学習と予測
     def train(self, df_train, index):
-        # Light Gradient Boostimg Machine
-        tuned_lightgbm = tune_model(create_model('lightgbm',cross_validation=True),optimize='MAPE')
-        # Ada Boostimg Machine
-        tuned_adaboost = tune_model(create_model('ada',cross_validation=True),optimize='MAPE')
-        # Gradient Boosting Regressor
-        tuned_gbr = tune_model(create_model('gbr',cross_validation=True),optimize='MAPE')
-        # Random Forest Regressor
-        tuned_rf = tune_model(create_model('rf',cross_validation=True),optimize='MAPE')
+        # Lasso Regression
+        tuned_lasso = tune_model(create_model('lasso',cross_validation=True),choose_better = True,optimize='MAPE')
+        # Elastic Net
+        tuned_en = tune_model(create_model('en',cross_validation=True),choose_better = True,optimize='MAPE')
+        # Ridge Regression
+        tuned_ridge = tune_model(create_model('ridge',cross_validation=True),choose_better = True,optimize='MAPE')
+        # Bayesian Ridge
+        tuned_br = tune_model(create_model('br',cross_validation=True),choose_better = True,optimize='MAPE')
+        # Linear Regression
+        tuned_lr = tune_model(create_model('lr',cross_validation=True),choose_better = True,optimize='MAPE')
         # Extra Trees Regressor
-        tuned_et = tune_model(create_model('et',cross_validation=True),optimize='MAPE')
-        # Decision Tree Regressor
-        tuned_dt = tune_model(create_model('dt',cross_validation=True),optimize='MAPE')
+        tuned_et = tune_model(create_model('et',cross_validation=True),choose_better = True,optimize='MAPE')
+
 
         voting_regressor = blend_models(
             estimator_list=[
-                tuned_lightgbm,
-                tuned_adaboost,
-                tuned_gbr,
-                tuned_rf,
-                tuned_et,
-                tuned_dt
+                tuned_lasso,
+                tuned_en,
+                tuned_ridge,
+                tuned_br,
+                tuned_lr,
+                tuned_et
             ],
+            choose_better = True,
             optimize='MAPE'
         )
 
@@ -99,18 +118,17 @@ class pycaretWeekly:
             voting_regressor,
             data=df_train
         )
-        df_pred.rename(columns={'Label':'predicted_Next_{}'.format(index)},inplace=True)
 
         # 特徴量重要度
         df_fi = pd.DataFrame(
             {
-                'explanatory_varibles':get_config('X').columns.values.tolist(),
-                'lightgbm_feature_importances':tuned_lightgbm.feature_importances_,
-                'adaboost_feature_importances':tuned_adaboost.feature_importances_,
-                'gbr_feature_importances':tuned_gbr.feature_importances_,
-                'rf_feature_importances':tuned_rf.feature_importances_,
-                'et_feature_importances':tuned_et.feature_importances_,
-                'dt_feature_importances':tuned_dt.feature_importances_
+                'explanatory_varibles':get_config('X_train_transformed').columns.values.tolist(),
+                # 'lasso_feature_importances':tuned_lasso.feature_importances_,
+                # 'en_feature_importances':tuned_en.feature_importances_,
+                # 'ridge_feature_importances':tuned_ridge.feature_importances_,
+                # 'br_feature_importances':tuned_br.feature_importances_,
+                # 'lr_feature_importances':tuned_lr.feature_importances_,
+                'et_feature_importances':tuned_et.feature_importances_
             }
         )
 

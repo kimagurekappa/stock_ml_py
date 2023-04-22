@@ -1,14 +1,14 @@
 numpy
 pandas
-statsmodels==0.13.2
-pycaret==2.3.10
+statsmodels
+pycaret==3.0.0
 datetime
 prophet==1.0.1
 oauth2client==4.1.3
 gspread==3.7.0
 google-api-python-client==1.7.9
 pymysql
-sqlalchemy
+sqlalchemy==1.4.46
 pandas_datareader
 bottleneck
 sshtunnel

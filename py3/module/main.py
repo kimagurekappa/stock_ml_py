@@ -79,7 +79,7 @@ def main():
 
     # 三大指数ETFの週足予測
     for i in range(len(target_list)):
-    # for i in [1]:
+    # for i in [2]:
         # checkpoint
         print('checkpoint:',i,':',target_list[i])
         # 22年前 ~ 今日までの週足を取得
@@ -175,13 +175,14 @@ def main():
             df_pred, voting_regressor, df_fi = pycaret_weekly.train(df_pycaret, index)
 
             # 予測
-            predict_df_pycaret = predict_model(
+            predict_df_pycaret_ = predict_model(
                 voting_regressor,
-                data=df_pycaret_pre
+                data=df_pycaret_pre.drop('Next_{}'.format(index),axis=1)
             )
+            predict_df_pycaret = pd.merge(predict_df_pycaret_,df_pycaret_pre[['datetime','Next_{}'.format(index)]],on = 'datetime')
 
             # 予測結果
-            predict_df_pycaret.rename(columns={'Label':'predicted_Next_{}'.format(index)},inplace=True)
+            predict_df_pycaret.rename(columns={'prediction_label':'predicted_Next_{}'.format(index)},inplace=True)
             predict_df_pycaret = predict_df_pycaret.reset_index()
             predict_df_pycaret['datetime'] = pd.to_datetime(predict_df_pycaret['datetime'])
             if index == 'High':
