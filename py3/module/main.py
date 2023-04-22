@@ -4,6 +4,7 @@ from model import prophetWeekly
 
 import os
 import pandas as pd
+import numpy as np
 from datetime import timedelta
 import datetime
 from pandas_datareader import data
