@@ -24,8 +24,8 @@ class Main:
         self.data_load = DataLoad(self.today)
         
     def main(self):
-        # # レバレッジETFのデータを保存
-        # self.save_stock_data(self.target_list_etf)
+        # レバレッジETFのデータを保存
+        self.save_stock_data(self.target_list_etf)
         
         # 三大指数ETFの週足予測
         self.prediction(self.target_list, self.target_list_pro)            
