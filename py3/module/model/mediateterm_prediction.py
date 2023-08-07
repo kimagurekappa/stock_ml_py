@@ -25,14 +25,55 @@ class prophetWeekly:
     predict_datas = {}
     experiments = {}
 
-    def __init__(self, model_datas):
-        self.model_datas = model_datas
+    def __init__(self, df_prophet, today):
+        self.today = today
+        self.predict_period_weeks = 4
+        self.model_datas = {}
+        self.model_datas['price'] = {}
+        self.model_datas['price']['model_type'] = 'price'
+        self.model_datas['price']['model_data'] = df_prophet
+        self.model_datas['price']['event'] = None
+        self.model_datas['price']['params'] = {'growth': ['linear'],
+                'changepoints': [None],
+                'n_changepoints': [25],
+                'changepoint_range': [0.8],
+                'yearly_seasonality': [True],
+                'weekly_seasonality': [False],
+                'daily_seasonality': [False],
+                'holidays': [None],
+                'seasonality_mode': ['multiplicative','additive'],
+                'seasonality_prior_scale': [10.0],
+                'holidays_prior_scale': [10.0],
+                'changepoint_prior_scale': [0.05],
+                'mcmc_samples': [100],
+                'interval_width': [0.80],
+                'uncertainty_samples': [1000],
+                'stan_backend': [None]
+                }
+        self.model_datas['price']['base_date'] = np.datetime64(today)
+        
 
     # データを出力
     def get_predict_df(self):
         df = pd.concat([v for v in self.predict_datas.values()])
-        return df
+        df['last_y'] = df['y'].shift(1)
+        df = df[df['ds']>np.datetime64(self.today - timedelta(+55))][['ds','yhat_lower','yhat_upper','yhat','y','base_date']].reset_index().drop('index',axis=1)
+        df = df.rename({'yhat_lower':'predicted_Close_Lower','yhat_upper':'predicted_Close_Upper','yhat':'predicted_Close','y':'Close'}, axis=1)
+        for t in range(4):
+            df['ds'][(8+t)] = df['ds'][(8+t)] + timedelta(1)
 
+        return df
+    
+    # データを出力
+    def get_predict_df_for_marge(self):
+        df = pd.concat([v for v in self.predict_datas.values()])
+        df['last_y'] = df['y'].shift(1)
+        df = df[df['ds']>np.datetime64(self.today)][['ds','yhat_lower','yhat_upper','yhat','last_y']].reset_index()
+        df = df.rename({'yhat_lower':'predicted_Next_Close_Lower','yhat_upper':'predicted_Next_Close_Upper','yhat':'predicted_Next_Close','last_y':'Close'}, axis=1)
+        df['ds'][0] = df['ds'][0] - timedelta(days=df['ds'][0].weekday())
+        df = df[df['ds']==np.datetime64(self.today - timedelta(+4))][['ds','predicted_Next_Close_Lower','predicted_Next_Close_Upper','predicted_Next_Close','Close']]
+
+        return df
     
     # モデル作成
     def modeling(self, is_best_params=True):
@@ -123,10 +164,11 @@ class prophetWeekly:
                     }
                 })
 
-    def predict(self, periods=52):
+    # 予測
+    def predict(self):
         for model, value in self.model_datas.items():
             m = value["model"]
-            future = m.make_future_dataframe(periods=periods, freq='w')
+            future = m.make_future_dataframe(periods=self.predict_period_weeks, freq='w')
             print(model, "Predicting...")
             try:
                 predict = m.predict(future)

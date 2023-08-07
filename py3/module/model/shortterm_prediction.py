@@ -3,7 +3,6 @@ import pandas as pd
 import numpy as np
 from pandas_datareader import data
 from datetime import timedelta
-import pandas_datareader.data as web
 
 # import matplotlib.pyplot as plt
 # import seaborn as sns
@@ -19,34 +18,55 @@ from pycaret.regression import *
 class pycaretWeekly:
 
     # コンストラクタ
-    def __init__(self):
-
+    def __init__(self, today):
+        # 予測する指標
+        self.index_list = ['High', 'Low']
+        self.today = today
+        self.end = self.today - datetime.timedelta(days=self.today.weekday() + 3)
+        self.today_pred = self.today - datetime.timedelta(days=self.today.weekday() - 4)
         pass
     
-    # 2年,5年,10年金利とイールドカーブ
-    def dgs(self, start, end):
-        df_DGS2 = web.DataReader("DGS2", "fred", start, end)
-        df_DGS5 = web.DataReader("DGS5", "fred", start, end)
-        df_DGS10 = web.DataReader("DGS10", "fred", start, end)
+    #メイン処理
+    def pycaret_main(self, df_stock_wk, df_dgs_wk):
+        # Pycaretモデル作成    
+        for index in self.index_list:
+            # 拡張
+            df_pycaret_pre = self.feature(df_stock_wk, df_dgs_wk, index)
+            df_pycaret = df_pycaret_pre[df_pycaret_pre['datetime']<=np.datetime64(self.end)]
+            
+            if index == 'High':
+                drop_list = ['Open', 'Close', 'DGS2', 'DGS5', 'Low','move_mean_{}_w25'.format(index)]
+            elif index == 'Low':
+                drop_list = ['Open', 'Close', 'DGS2', 'DGS5', 'High','move_mean_{}_w25'.format(index)]
+            df_pycaret_pre = df_pycaret_pre.drop(drop_list,axis=1)
+            df_pycaret = df_pycaret.drop(drop_list,axis=1)
+            
+            # 環境セットアップ
+            regression = self.regression(df_pycaret, index)
 
-        df_DGS = pd.concat([df_DGS2, df_DGS5, df_DGS10], axis=1)
+            # モデル作成
+            df_pred, voting_regressor, df_fi = self.train(df_pycaret, index)
 
-        yield_curves = []
-        for row in df_DGS.iterrows():
-            if row[1].isnull().any():
-                yield_curves.append(np.nan)
-            else:
-                x = [2, 5, 10]
-                y = row[1].values
-                yield_curves.append(np.polyfit(x, y, 1)[0])
+            # 予測
+            predict_df_pycaret_ = predict_model(
+                voting_regressor,
+                data=df_pycaret_pre.drop('Next_{}'.format(index),axis=1)
+            )
+            predict_df_pycaret = pd.merge(predict_df_pycaret_,df_pycaret_pre[['datetime','Next_{}'.format(index)]],on = 'datetime')
 
-        df_DGS["YC"] = yield_curves
+            # 予測結果
+            predict_df_pycaret.rename(columns={'prediction_label':'predicted_Next_{}'.format(index)},inplace=True)
+            predict_df_pycaret = predict_df_pycaret.reset_index()
+            predict_df_pycaret['datetime'] = pd.to_datetime(predict_df_pycaret['datetime'])
+            if index == 'High':
+                df_High = predict_df_pycaret.drop('index', axis=1)
+            elif index == 'Low':
+                df_Low = predict_df_pycaret.drop('index', axis=1)
+
+        result_df = pd.merge(df_High[['datetime','High','Next_High', 'predicted_Next_High']], df_Low[['datetime','Low','Next_Low', 'predicted_Next_Low']], on='datetime')
         
-        #VIXのデータを取得
-        vix = web.DataReader('VIXCLS','fred', start, end)
-        df_DGS = pd.concat([df_DGS, vix], axis=1)
+        return result_df
         
-        return df_DGS.resample('W-MON').mean()
     
     #環境セットアップ
     def regression(self, df_train, index):
